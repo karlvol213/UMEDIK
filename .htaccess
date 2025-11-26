@@ -1,0 +1,10 @@
+DirectoryIndex index.php home.php
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /project_HCI/clean/
+    
+    # If the requested file or directory doesn't exist, pass it to index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>

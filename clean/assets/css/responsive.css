@@ -1,0 +1,47 @@
+/* Responsive Styles */
+
+@media (max-width: 1024px) {
+    .container {
+        padding: 0 16px;
+    }
+}
+
+@media (max-width: 768px) {
+    .hidden-mobile {
+        display: none !important;
+    }
+    
+    .show-mobile {
+        display: block !important;
+    }
+    
+    .form-container {
+        margin-top: 80px;
+        padding: 24px;
+    }
+    
+    body {
+        padding: 12px;
+    }
+    
+    .grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .form-container {
+        margin-top: 60px;
+        padding: 16px;
+    }
+    
+    .submit-button {
+        padding: 10px;
+        font-size: 14px;
+    }
+    
+    .input-field {
+        padding: 10px;
+        font-size: 12px;
+    }
+}
