@@ -1,1 +1,1 @@
-web: php -S 0.0.0.0:$PORT -t php-files-here
+web: php -S 0.0.0.0:$PORT -t .
