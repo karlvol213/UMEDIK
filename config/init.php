@@ -14,15 +14,20 @@ if (file_exists($init_file)) {
 }
 
 try {
-    require_once __DIR__ . '/config/database.php';
-    
+    // Load the database singleton from the same `config` directory
+    require_once __DIR__ . '/database.php';
+
     $pdo = Database::getInstance();
     
     // Check if users table exists
     $result = $pdo->query("SHOW TABLES LIKE 'users'");
     if ($result->rowCount() === 0) {
-        // Read and execute database setup
-        $setup_sql = file_get_contents(__DIR__ . '/database_setup.sql');
+        // Read and execute database setup (project root)
+        $setup_path = __DIR__ . '/../database_setup.sql';
+        if (!file_exists($setup_path)) {
+            throw new Exception("Database setup file not found: $setup_path");
+        }
+        $setup_sql = file_get_contents($setup_path);
         
         // Split by semicolon and execute each statement
         $statements = array_filter(
