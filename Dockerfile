@@ -18,13 +18,17 @@ RUN chown -R www-data:www-data /var/www/html && \
 
 # Configure Apache
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf && \
-    echo "ServerName localhost" >> /etc/apache2/apache2.conf
+    echo "ServerName localhost" >> /etc/apache2/apache2.conf && \
+    a2enmod rewrite headers
+
+# Configure PHP to log errors
+RUN echo 'error_reporting = E_ALL' >> /usr/local/etc/php/conf.d/docker-php.ini && \
+    echo 'display_errors = On' >> /usr/local/etc/php/conf.d/docker-php.ini && \
+    echo 'log_errors = On' >> /usr/local/etc/php/conf.d/docker-php.ini && \
+    echo 'error_log = /proc/self/fd/2' >> /usr/local/etc/php/conf.d/docker-php.ini
 
 # Expose port and handle dynamic PORT from Railway
 EXPOSE 80
 
-# Create Apache config for dynamic port
-RUN echo 'Listen 0.0.0.0:${PORT}' > /etc/apache2/ports.conf
-
 # Use the PORT environment variable if provided by Railway, default to 80
-CMD ["/bin/bash", "-c", "sed -i \"s/Listen 80/Listen 0.0.0.0:${PORT:-80}/g\" /etc/apache2/ports.conf && apache2-foreground"]
+CMD ["/bin/bash", "-c", "PORT=${PORT:-80}; sed -i \"s/Listen 80/Listen 0.0.0.0:$PORT/g\" /etc/apache2/ports.conf; apache2-foreground"]
