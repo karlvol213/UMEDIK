@@ -59,13 +59,47 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
     }
 
+    // Validate middle name - optional field
+    $middle_name_validation_error = null;
+    if (!empty($middle_name)) {
+        if (!preg_match('/^[a-zA-Z\s\-\']+$/', $middle_name)) {
+            $middle_name_validation_error = "Middle Name must contain letters only (no numbers or symbols).";
+        }
+    }
+
+    // Validate phone - must be 11 digits (now required)
+    $phone_validation_error = null;
+    if (empty($phone)) {
+        $phone_validation_error = "Phone number is required.";
+    } elseif (!preg_match('/^\d{11}$/', $phone)) {
+        $phone_validation_error = "Phone number must be 11 digits.";
+    }
+
+    // Validate student ID - now required
+    $student_id_validation_error = null;
+    if (empty($student_id)) {
+        $student_id_validation_error = "Student ID is required.";
+    } elseif (!preg_match('/^[a-zA-Z]\d{8}$/', $student_id)) {
+        $student_id_validation_error = "Student ID must be 1 letter followed by 8 numbers.";
+    }
+
+    // Validate address - now required
+    $address_validation_error = null;
+    if (empty($address)) {
+        $address_validation_error = "Address is required.";
+    }
+
     // basta security sa password
     if ($name_validation_error) {
         $errorMessage = $name_validation_error;
+    } elseif ($middle_name_validation_error) {
+        $errorMessage = $middle_name_validation_error;
     } elseif ($email_validation_error) {
         $errorMessage = $email_validation_error;
     } elseif ($student_id_validation_error) {
         $errorMessage = $student_id_validation_error;
+    } elseif ($address_validation_error) {
+        $errorMessage = $address_validation_error;
     } elseif ($age_validation_error) {
         $errorMessage = $age_validation_error;
     } elseif ($phone_validation_error) {
@@ -231,18 +265,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 
                 <div>
                     <label for="student_id" class="block text-sm font-medium text-gray-700">Student ID</label>
-                    <input id="student_id" name="student_id" type="text" 
+                    <input id="student_id" name="student_id" type="text" required
                            class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
-                           placeholder="student ID">
+                           placeholder="A12345678">
                     <small class="text-gray-500 mt-1 block">Student ID must be 1 letter followed by 8 numbers (e.g., A12345678)</small>
                     <div id="student-id-validation-message" class="mt-2 text-sm hidden"></div>
                 </div>
                 
                 <div>
                     <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
-                    <input id="phone" name="phone" type="tel" 
+                    <input id="phone" name="phone" type="tel" required
                            class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
-                           placeholder="phone number">
+                           placeholder="09123456789">
                     <small class="text-gray-500 mt-1 block">Phone number must be exactly 11 digits</small>
                     <div id="phone-validation-message" class="mt-2 text-sm hidden"></div>
                 </div>
@@ -258,7 +292,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 <div>
                     <label for="address" class="block text-sm font-medium text-gray-700">Address</label>
-                    <textarea id="address" name="address" rows="3"
+                    <textarea id="address" name="address" rows="3" required
                             class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                             placeholder="Enter your complete address"></textarea>
                 </div>

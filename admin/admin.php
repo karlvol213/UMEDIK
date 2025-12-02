@@ -34,6 +34,50 @@ if (function_exists('get_all_appointments')) {
         $appointments = [];
     }
 }
+
+// Auto-cancel overdue approved appointments
+// Check for approved appointments that have passed their scheduled time
+require_once '../config/database.php';
+try {
+    $pdo = Database::getInstance();
+    $now = new DateTime();
+    $now_string = $now->format('Y-m-d H:i:s');
+    
+    // Find approved appointments where the scheduled time has passed
+    $overdue_sql = "SELECT a.id, a.appointment_date, a.appointment_time, a.user_id
+                    FROM appointments a
+                    WHERE a.status = 'approved' 
+                    AND CONCAT(a.appointment_date, ' ', a.appointment_time) < ?
+                    LIMIT 100";
+    $overdue_stmt = $pdo->prepare($overdue_sql);
+    $overdue_stmt->execute([$now_string]);
+    
+    while ($overdue = $overdue_stmt->fetch(PDO::FETCH_ASSOC)) {
+        // Auto-cancel this appointment
+        $cancel_stmt = $pdo->prepare("UPDATE appointments SET status = 'cancelled' WHERE id = ?");
+        $cancel_stmt->execute([$overdue['id']]);
+        
+        // Log the action
+        if (function_exists('log_action')) {
+            log_action($overdue['user_id'], 'APPOINTMENT_AUTO_CANCELLED', 'Appointment automatically cancelled - patient did not show up at scheduled time');
+        }
+    }
+} catch (Exception $e) {
+    error_log("Error auto-cancelling overdue appointments: " . $e->getMessage());
+}
+
+// Sort appointments: requested first, then by date
+usort($appointments, function($a, $b) {
+    // Requested appointments always come first
+    if ($a['status'] === 'requested' && $b['status'] !== 'requested') {
+        return -1;
+    }
+    if ($a['status'] !== 'requested' && $b['status'] === 'requested') {
+        return 1;
+    }
+    // Then sort by appointment date
+    return strtotime($a['appointment_date']) - strtotime($b['appointment_date']);
+});
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -128,6 +172,21 @@ if (function_exists('get_all_appointments')) {
         border: 1px solid #f87171;
     }
 
+    .status-warning {
+        background-color: #fef08a;
+        color: #92400e;
+        border: 1px solid #facc15;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.7;
+        }
+    }
 
     .action-btn {
         padding: 8px 16px;
@@ -269,6 +328,26 @@ if (function_exists('get_all_appointments')) {
         <tbody>
             <?php if (count($appointments) > 0): ?>
                 <?php foreach ($appointments as $appt): ?>
+                    <?php
+                        // Check if appointment is within 2 hours of cancellation time
+                        $warning_class = '';
+                        $warning_text = '';
+                        if ($appt['status'] === 'approved') {
+                            try {
+                                $appt_datetime = new DateTime($appt['appointment_date'] . ' ' . ($appt['appointment_time'] ?? '09:00:00'));
+                                $now = new DateTime();
+                                $diff_minutes = ($appt_datetime->getTimestamp() - $now->getTimestamp()) / 60;
+                                
+                                // If within 2 hours (120 minutes) and appointment time hasn't passed yet
+                                if ($diff_minutes <= 120 && $diff_minutes > 0) {
+                                    $warning_class = 'status-warning';
+                                    $warning_text = ' ⏰ ' . round($diff_minutes) . ' min to cancel';
+                                }
+                            } catch (Exception $e) {
+                                // Continue if datetime parsing fails
+                            }
+                        }
+                    ?>
                     <tr>
                         <td><?= htmlspecialchars($appt['full_name'] ?? ''); ?></td>
                         <td>
@@ -296,8 +375,8 @@ if (function_exists('get_all_appointments')) {
                                 <span><?= $display_time ?></span>
                         </td>
                         <td>
-                            <span class="status-badge status-<?= htmlspecialchars($appt['status'] ?? ''); ?>">
-                                <?= htmlspecialchars(ucfirst($appt['status'] ?? '')); ?>
+                            <span class="status-badge status-<?= htmlspecialchars($appt['status'] ?? ''); ?> <?= $warning_class ?>">
+                                <?= htmlspecialchars(ucfirst($appt['status'] ?? '')); ?><?= $warning_text ?>
                             </span>
                         </td>
                         <td>

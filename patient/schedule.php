@@ -477,11 +477,89 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
  
 </style>
-<script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="min-h-screen" style="background: linear-gradient(to bottom right, #ffffff, #cce0ff); background-attachment: fixed; background-repeat: no-repeat;">
   <?php include '../includes/tailwind_nav.php'; ?>
-    <div class="container" style="padding-top: 0;">
+  
+  <!-- Instructions Modal -->
+  <div id="instructionsModal" class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full">
+      <div class="bg-gradient-to-r from-blue-900 to-blue-800 px-6 py-4 rounded-t-lg flex items-center justify-between">
+        <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+          <span class="text-3xl">⚠️</span> ATTENTION
+        </h2>
+        <button onclick="closeInstructionsModal()" class="text-white hover:text-gray-200 text-2xl">&times;</button>
+      </div>
+      
+      <div class="p-6 space-y-6">
+        <div class="space-y-4">
+          <div class="flex gap-4 items-start">
+            <div class="bg-blue-900 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold flex-shrink-0">1</div>
+            <div>
+              <h3 class="text-lg font-bold text-gray-900">Set Your Date of Scheduling</h3>
+              <p class="text-gray-600 text-sm mt-1">Select the date when you want to schedule your appointment.</p>
+            </div>
+          </div>
+          
+          <div class="flex gap-4 items-start">
+            <div class="bg-blue-900 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold flex-shrink-0">2</div>
+            <div>
+              <h3 class="text-lg font-bold text-gray-900">Select Symptom</h3>
+              <p class="text-gray-600 text-sm mt-1">Choose the symptom that best describes your need. If you have more than 1 symptom, choose "Others and More" and describe your symptoms in the Additional Information section.</p>
+            </div>
+          </div>
+          
+          <div class="flex gap-4 items-start">
+            <div class="bg-blue-900 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold flex-shrink-0">3</div>
+            <div>
+              <h3 class="text-lg font-bold text-gray-900">Choose Specific Time for Your Appointment</h3>
+              <p class="text-gray-600 text-sm mt-1">Select a specific time slot that works best for you.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-red-50 border-l-4 border-red-900 p-4 rounded">
+          <p class="text-red-900 font-bold text-sm flex items-start gap-2">
+            <span class="text-lg">⚠️</span>
+            <span>Important: If you don't show up at your scheduled time, your appointment will be automatically cancelled.</span>
+          </p>
+        </div>
+        
+        <div class="flex justify-end">
+          <button onclick="closeInstructionsModal()" class="px-6 py-2 bg-blue-900 text-white font-bold rounded-lg hover:bg-blue-950 transition">
+            I Understand, Let's Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function closeInstructionsModal() {
+      document.getElementById('instructionsModal').classList.add('hidden');
+    }
+    
+    // Show modal on page load
+    window.addEventListener('load', function() {
+      // Optional: uncomment to show modal every time, otherwise shows once per session
+      // document.getElementById('instructionsModal').classList.remove('hidden');
+      
+      // Show if not shown in this session
+      if (!sessionStorage.getItem('instructionsShown')) {
+        document.getElementById('instructionsModal').classList.remove('hidden');
+        sessionStorage.setItem('instructionsShown', 'true');
+      }
+    });
+  </script>
+  
+  <style>
+    #instructionsModal.hidden {
+      display: none;
+    }
+  </style>
+    
+  <div class="container" style="padding-top: 0;">
     <h1>Schedule Appointment</h1>
     
     <?php if (isset($_SESSION['success_message'])): ?>

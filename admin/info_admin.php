@@ -60,6 +60,40 @@ if (function_exists('log_action')) {
 }
 
 // Handle AJAX requests first
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['get_previous_height'])) {
+    // Get previous height for a patient
+    ob_clean();
+    header('Content-Type: application/json');
+    $response = ['success'=>false,'height'=>null,'message'=>''];
+    
+    try {
+        if (!isset($pdo)) throw new Exception("Database connection failed");
+        
+        $user_id = filter_var($_POST['user_id'], FILTER_VALIDATE_INT);
+        if ($user_id === false || $user_id <= 0) throw new Exception('Invalid user id');
+        
+        // Get the first (oldest) height record for this patient
+        $stmt = $pdo->prepare("SELECT height FROM biometrics WHERE user_id = ? ORDER BY record_date ASC, created_at ASC LIMIT 1");
+        $stmt->execute([$user_id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($result && $result['height']) {
+            $response['success'] = true;
+            $response['height'] = floatval($result['height']);
+            $response['message'] = 'Previous height found';
+        } else {
+            $response['success'] = false;
+            $response['message'] = 'No previous height record found';
+        }
+    } catch (Exception $e) {
+        $response['success'] = false;
+        $response['message'] = $e->getMessage();
+    }
+    
+    echo json_encode($response);
+    exit;
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_biometrics'])) {
     // Prevent any HTML output
     ob_clean();
@@ -270,22 +304,74 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_biometrics'])) 
     $hasServiceType = (bool)$colStmt->fetchColumn();
     if (!$hasServiceType) { $pdo->exec("ALTER TABLE appointments ADD COLUMN service_type VARCHAR(255) AFTER appointment_date"); }
 
+    // Check for expired appointments and move them to patient history
+    $expired_sql = "SELECT 
+        u.id as user_id, u.first_name, u.last_name,
+        a.id as appointment_id, a.appointment_date, a.service_type
+        FROM users u
+        INNER JOIN appointments a ON u.id = a.user_id
+        WHERE u.role = 'patient' AND a.status = 'approved' AND a.appointment_date < CURDATE()";
+    $expired_result = $pdo->query($expired_sql);
+    
+    if ($expired_result && $expired_result->rowCount() > 0) {
+        while ($expired = $expired_result->fetch(PDO::FETCH_ASSOC)) {
+            // Add entry to patient_history_records with 'Expired - Did not record' status
+            try {
+                $hist_insert = $pdo->prepare("INSERT INTO patient_history_records (user_id, visit_date, diagnosis, created_at) 
+                                            VALUES (?, ?, ?, NOW())");
+                $hist_insert->execute([
+                    $expired['user_id'],
+                    $expired['appointment_date'],
+                    'Appointment expired - Patient did not record biometrics on scheduled date (' . $expired['appointment_date'] . ')'
+                ]);
+                
+                // Mark appointment as expired
+                $update_appt = $pdo->prepare("UPDATE appointments SET status = 'expired' WHERE id = ?");
+                $update_appt->execute([$expired['appointment_id']]);
+            } catch (Exception $e) {
+                error_log("Error processing expired appointment: " . $e->getMessage());
+            }
+        }
+    }
+
     $users_sql = "SELECT 
         u.id, u.first_name, u.last_name, u.email, u.phone, u.birthday, u.sex, u.department, u.student_number,
         MAX(b.created_at) as last_record_date, a.id as appointment_id, COALESCE(a.service_type, 'General Checkup') as service_type, a.appointment_date, a.status
         FROM users u
         INNER JOIN appointments a ON u.id = a.user_id
         LEFT JOIN biometrics b ON u.id = b.user_id
-        WHERE u.role = 'patient' AND a.status = 'approved'
+        WHERE u.role = 'patient' AND a.status = 'approved' AND a.appointment_date >= CURDATE()
         GROUP BY u.id, u.first_name, u.last_name, u.email, u.phone, u.birthday, u.sex, u.department, u.student_number, a.id, a.appointment_date, a.status, a.service_type
         ORDER BY a.appointment_date ASC, u.last_name, u.first_name";
     $users_result = $pdo->query($users_sql);
     if ($users_result === false) { die('Error fetching users'); }
+    
+    // Get list of patients with overdue appointments who didn't show up (more than 2 hours past appointment time)
+    $overdue_patients_sql = "SELECT DISTINCT u.id
+                            FROM users u
+                            INNER JOIN appointments a ON u.id = a.user_id
+                            WHERE u.role = 'patient' AND a.status IN ('approved', 'cancelled') 
+                            AND CONCAT(a.appointment_date, ' ', a.appointment_time) < DATE_SUB(NOW(), INTERVAL 2 HOUR)
+                            AND NOT EXISTS (
+                                SELECT 1 FROM biometrics b WHERE b.user_id = u.id AND DATE(b.created_at) = a.appointment_date
+                            )";
+    $overdue_patients_result = $pdo->query($overdue_patients_sql);
+    $overdue_patient_ids = [];
+    if ($overdue_patients_result) {
+        while ($row = $overdue_patients_result->fetch(PDO::FETCH_ASSOC)) {
+            $overdue_patient_ids[] = $row['id'];
+        }
+    }
     ?>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12 gap-3" id="patientsGrid">
         <?php while ($user = $users_result->fetch(PDO::FETCH_ASSOC)) { 
             $full_name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+            
+            // Skip this patient if they have an overdue appointment and didn't record biometrics
+            if (in_array($user['id'], $overdue_patient_ids)) {
+                continue;
+            }
         ?>
             <div class="sm:col-span-1 md:col-span-2 lg:col-span-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all" data-user-id="<?= (int)$user['id'] ?>" data-name="<?= htmlspecialchars($full_name) ?>" data-email="<?= htmlspecialchars($user['email'] ?? '') ?>" data-phone="<?= htmlspecialchars($user['phone'] ?? '') ?>" data-student="<?= htmlspecialchars($user['student_number'] ?? '') ?>" data-service="<?= htmlspecialchars($user['service_type'] ?? '') ?>" data-appointment="<?= htmlspecialchars($user['appointment_date'] ?? '') ?>">
                 <div class="flex items-center gap-3 p-3 border-b border-gray-100">
@@ -297,11 +383,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_biometrics'])) 
                 </div>
 
                 <div class="p-3 space-y-2">
-                    <div class="text-xs text-gray-600"><?= htmlspecialchars($user['student_number'] ??  'No ID'); ?></div>
-                    <div class="text-xs text-gray-600"><?= htmlspecialchars($user['email']); ?></div>
-                    <div class="text-xs text-gray-600"><?= htmlspecialchars($user['phone'] ?? 'No phone'); ?></div>
-                    <div class="text-xs text-gray-600"><?= htmlspecialchars($user['appointment_date']); ?></div>
-                    <div class="text-xs text-gray-600"><?= htmlspecialchars($user['service_type']); ?></div>
+                    <div class="text-xs text-gray-600 truncate" title="<?= htmlspecialchars($user['student_number'] ?? 'No ID') ?>"><?= htmlspecialchars($user['student_number'] ??  'No ID'); ?></div>
+                    <div class="text-xs text-gray-600 break-words line-clamp-2" title="<?= htmlspecialchars($user['email']) ?>"><?= htmlspecialchars($user['email']); ?></div>
+                    <div class="text-xs text-gray-600 truncate" title="<?= htmlspecialchars($user['phone'] ?? 'No phone') ?>"><?= htmlspecialchars($user['phone'] ?? 'No phone'); ?></div>
+                    <div class="text-xs text-gray-600 truncate" title="<?= htmlspecialchars($user['appointment_date'] ?? '') ?>"><?= htmlspecialchars($user['appointment_date']); ?></div>
+                    <div class="text-xs text-gray-600 truncate" title="<?= htmlspecialchars($user['service_type'] ?? '') ?>"><?= htmlspecialchars($user['service_type']); ?></div>
 
                     <div class="flex gap-2 justify-end pt-2">
                         <button type="button" class="px-3 py-1 rounded-lg font-bold text-white bg-blue-900 hover:bg-blue-950 shadow-sm text-sm"
@@ -522,6 +608,25 @@ if ($col_check && mysqli_num_rows($col_check) == 0) {
         document.querySelectorAll('form input, form textarea').forEach(el => el.classList.remove('border-red-500'));
 
         modal.classList.remove('hidden');
+        
+        // Fetch previous height and populate the field
+        const heightInput = modal.querySelector('[name="height"]');
+        fetch('info_admin.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'get_previous_height=1&user_id=' + userId
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.height) {
+                heightInput.value = data.height;
+                heightInput.setAttribute('title', 'Previous height: ' + data.height + ' cm');
+            }
+        })
+        .catch(error => console.log('Note: Could not fetch previous height:', error));
+        
         const first = modal.querySelector('[name="height"]'); if (first) first.focus();
     }
 
