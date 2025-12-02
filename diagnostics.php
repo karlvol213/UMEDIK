@@ -4,6 +4,9 @@
  * Shows environment and database status
  */
 
+// Initialize database on first load
+require_once 'config/init.php';
+
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 

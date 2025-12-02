@@ -4,6 +4,9 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Initialize database on first load
+require_once 'config/init.php';
+
 session_start();
 
 try {
