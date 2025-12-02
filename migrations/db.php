@@ -1,8 +1,8 @@
 <?php
-$host = 'mysql.railway.internal';      // e.g., containers-us-west-123.railway.app
-$db   = 'railway';      // e.g., railway
+$host = 'localhost';      // e.g., containers-us-west-123.railway.app
+$db   = 'medical_appointment_db';      // e.g., railway
 $user = 'root';      // e.g., root
-$pass = 'OBhsXRFdyHRTeiCRUHjyDNuRJcDoXDQm';  // copy from Railway
+$pass = '';  // copy from Railway
 $port = 3306;                         // usually 3306
 
 try {
