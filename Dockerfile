@@ -17,10 +17,14 @@ RUN chown -R www-data:www-data /var/www/html && \
     chmod -R 755 /var/www/html
 
 # Configure Apache
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf && \
+    echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
-# Expose port 80
+# Expose port and handle dynamic PORT from Railway
 EXPOSE 80
 
-# Start Apache
-CMD ["apache2-foreground"]
+# Create Apache config for dynamic port
+RUN echo 'Listen 0.0.0.0:${PORT}' > /etc/apache2/ports.conf
+
+# Use the PORT environment variable if provided by Railway, default to 80
+CMD ["/bin/bash", "-c", "sed -i \"s/Listen 80/Listen 0.0.0.0:${PORT:-80}/g\" /etc/apache2/ports.conf && apache2-foreground"]
