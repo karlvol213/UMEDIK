@@ -1,10 +1,14 @@
-DirectoryIndex index.php home.php
+DirectoryIndex index.php
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    RewriteBase /
 
-    # Only rewrite if the file or directory doesn't exist
+    # Avoid redirect loop by ignoring index.php explicitly
+    RewriteRule ^index\.php$ - [L]
+
+    # If file or folder doesn't exist, route to index.php
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^ index.php [QSA,L]
+    RewriteRule . /index.php [L]
 </IfModule>
