@@ -1,9 +1,18 @@
 <?php
 
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
-require_once 'config/database.php';
-require_once 'config/functions.php';
-require_once 'config/admin_access.php';
+
+try {
+    require_once 'config/database.php';
+    require_once 'config/functions.php';
+    require_once 'config/admin_access.php';
+} catch (Exception $e) {
+    die("❌ Failed to load required files: " . $e->getMessage());
+}
 
 $message = "";
 
